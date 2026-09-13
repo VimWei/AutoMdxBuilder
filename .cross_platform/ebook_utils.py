@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # @Date    : 2023-11-15 18:43:07
 # @Author  : Litles (litlesme@gmail.com)
 # @Link    : https://github.com/Litles
@@ -8,12 +7,14 @@
 import os
 import re
 import shutil
-from colorama import Fore
+
 # from PIL import Image
 import sys
-from mdict_utils.__main__ import run as mdict_cmd
+
 import fitz
+from colorama import Fore
 from fitz.__main__ import main as fitz_command
+from mdict_utils.__main__ import run as mdict_cmd
 
 
 class EbookUtils:
@@ -50,7 +51,7 @@ class EbookUtils:
                 text = ''
                 if fp.endswith('.info.html'):
                     with open(fp, 'r', encoding='utf-8') as fr:
-                        if re.search(r'<div><br/>[^><]*?, (packed|built) with AutoMdxBuilder[^><]*?\.<br/></div>', fr.read(), flags=re.I):
+                        if re.search(r'<div><br/>[^><]*?, (packed|built) with AutoMdxBuilder[^><]*?\.<br/></div>', fr.read(), flags=re.IGNORECASE):
                             # 符合条件, 支持词条顺序的还原
                             order_flg = True
                             break
@@ -75,8 +76,7 @@ class EbookUtils:
                 if eid != '':
                     entries.sort(key=lambda x: x["eid"], reverse=False)
                     with open(file_final_txt, 'w', encoding='utf-8') as fw:
-                        for entry in entries:
-                            fw.write(entry["text"])
+                        fw.writelines(entry["text"] for entry in entries)
             else:
                 print(Fore.YELLOW + "WARN: " + Fore.RESET + "检测到词典并非由 AMB 生成, 不保证词条顺序的准确还原")
         elif os.path.isfile(mfile) and mfile.endswith('.mdd'):
@@ -115,18 +115,20 @@ class EbookUtils:
         if os.path.exists(file_final_txt) and os.path.exists(file_dict_info):
             # 给词条添加编号信息
             tmp_final_txt = os.path.join(os.path.join(self.settings.dir_bundle, '_tmp'), 'tmp_final.txt')
-            with open(file_final_txt, 'r', encoding='utf-8') as fr:
-                with open(tmp_final_txt, 'w', encoding='utf-8') as fw:
-                    n = 0
-                    link_flg = False
-                    for line in fr:
-                        if re.match(r'^@@@LINK=', line, flags=re.I):
-                            link_flg = True
-                        if (not link_flg) and re.match(r'^</>\s*$', line):
-                            n += 1
-                            fw.write(f'<div class="entry-id" style="display:none;">{str(n).zfill(8)}</div>\n')
-                            link_flg = False
-                        fw.write(line)
+            with (
+                open(file_final_txt, 'r', encoding='utf-8') as fr,
+                open(tmp_final_txt, 'w', encoding='utf-8') as fw,
+            ):
+                n = 0
+                link_flg = False
+                for line in fr:
+                    if re.match(r'^@@@LINK=', line, flags=re.IGNORECASE):
+                        link_flg = True
+                    if (not link_flg) and re.match(r'^</>\s*$', line):
+                        n += 1
+                        fw.write(f'<div class="entry-id" style="display:none;">{str(n).zfill(8)}</div>\n')
+                        link_flg = False
+                    fw.write(line)
             self.mdict(['--description', file_dict_info, '--encoding', 'utf-8', '-a', tmp_final_txt, ftitle+'.mdx'])
         else:
             print(Fore.RED + "ERROR: " + Fore.RESET + f"文件 {file_final_txt} 或 {file_dict_info} 不存在")
@@ -134,10 +136,7 @@ class EbookUtils:
         # 打包 mdd
         if dir_data is not None:
             mdd_flg = self.pack_to_mdd(dir_data, ftitle)
-        if mdx_flg and mdd_flg:
-            return True
-        else:
-            return False
+        return bool(mdx_flg and mdd_flg)
 
     def pack_to_mdd(self, dir_data, ftitle):
         """ 仅打包 mdd (取代 MdxBuilder.exe) """
@@ -209,7 +208,7 @@ class EbookUtils:
                     if mdd_rk == 0:
                         self.mdict(['-a', tmp_dir, ftitle+'.mdd'])
                     else:
-                        self.mdict(['-a', tmp_dir, f'{ftitle}.{str(mdd_rk)}.mdd'])
+                        self.mdict(['-a', tmp_dir, f'{ftitle}.{mdd_rk!s}.mdd'])
                     # 打包完再移回去
                     for fname in os.listdir(tmp_dir):
                         os.rename(os.path.join(tmp_dir, fname), os.path.join(dir_data, fname))
@@ -227,7 +226,7 @@ class EbookUtils:
                 if len(os.listdir(tmp_dir)) == 0:
                     pass
                 else:
-                    self.mdict(['-a', tmp_dir, f'{ftitle}.{str(mdd_rk)}.mdd'])
+                    self.mdict(['-a', tmp_dir, f'{ftitle}.{mdd_rk!s}.mdd'])
                     # 移回去
                     for fname in os.listdir(tmp_dir):
                         os.rename(os.path.join(tmp_dir, fname), os.path.join(dir_data, fname))

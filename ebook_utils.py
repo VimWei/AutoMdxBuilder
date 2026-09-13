@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # @Date    : 2023-11-15 18:43:07
 # @Author  : Litles (litlesme@gmail.com)
 # @Link    : https://github.com/Litles
@@ -8,15 +7,18 @@
 import os
 import re
 import shutil
+import sys
 import time
+
 from colorama import Fore
+from mdict_utils.__main__ import run as mdict_cmd
+from PIL import Image
+
 # import codecs
 from pywinauto.application import Application
 from pywinauto.keyboard import send_keys
 from pywinauto.timings import Timings
-from PIL import Image
-import sys
-from mdict_utils.__main__ import run as mdict_cmd
+
 # import fitz
 # from fitz.__main__ import main as fitz_command
 
@@ -55,7 +57,7 @@ class EbookUtils:
                 text = ''
                 if fp.endswith('.info.html'):
                     with open(fp, 'r', encoding='utf-8') as fr:
-                        if re.search(r'<div><br/>[^><]*?, (packed|built) with AutoMdxBuilder[^><]*?\.<br/></div>', fr.read(), flags=re.I):
+                        if re.search(r'<div><br/>[^><]*?, (packed|built) with AutoMdxBuilder[^><]*?\.<br/></div>', fr.read(), flags=re.IGNORECASE):
                             # 符合条件, 支持词条顺序的还原
                             order_flg = True
                             break
@@ -80,8 +82,7 @@ class EbookUtils:
                 if eid != '':
                     entries.sort(key=lambda x: x["eid"], reverse=False)
                     with open(file_final_txt, 'w', encoding='utf-8') as fw:
-                        for entry in entries:
-                            fw.write(entry["text"])
+                        fw.writelines(entry["text"] for entry in entries)
             else:
                 print(Fore.YELLOW + "INFO: " + Fore.RESET + "检测到词典并非由 AMB 生成, 不保证词条顺序的准确还原")
         elif os.path.isfile(mfile) and mfile.endswith('.mdd'):
@@ -120,18 +121,20 @@ class EbookUtils:
         if os.path.exists(file_final_txt) and os.path.exists(file_dict_info):
             # 给词条添加编号信息
             tmp_final_txt = os.path.join(os.path.join(self.settings.dir_bundle, '_tmp'), 'tmp_final.txt')
-            with open(file_final_txt, 'r', encoding='utf-8') as fr:
-                with open(tmp_final_txt, 'w', encoding='utf-8') as fw:
-                    n = 0
-                    link_flg = False
-                    for line in fr:
-                        if re.match(r'@@@LINK=', line, flags=re.I):
-                            link_flg = True
-                        if (not link_flg) and re.match(r'</>\s*$', line):
-                            n += 1
-                            fw.write(f'<div class="entry-id" style="display:none;">{str(n).zfill(8)}</div>\n')
-                            link_flg = False
-                        fw.write(line)
+            with (
+                open(file_final_txt, 'r', encoding='utf-8') as fr,
+                open(tmp_final_txt, 'w', encoding='utf-8') as fw,
+            ):
+                n = 0
+                link_flg = False
+                for line in fr:
+                    if re.match(r'@@@LINK=', line, flags=re.IGNORECASE):
+                        link_flg = True
+                    if (not link_flg) and re.match(r'</>\s*$', line):
+                        n += 1
+                        fw.write(f'<div class="entry-id" style="display:none;">{str(n).zfill(8)}</div>\n')
+                        link_flg = False
+                    fw.write(line)
             self.mdict(['--description', file_dict_info, '--encoding', 'utf-8', '-a', tmp_final_txt, ftitle+'.mdx'])
         else:
             print(Fore.RED + "ERROR: " + Fore.RESET + f"文件 {file_final_txt} 或 {file_dict_info} 不存在")
@@ -139,10 +142,7 @@ class EbookUtils:
         # 打包 mdd
         if dir_data is not None:
             mdd_flg = self.pack_to_mdd(dir_data, ftitle)
-        if mdx_flg and mdd_flg:
-            return True
-        else:
-            return False
+        return bool(mdx_flg and mdd_flg)
 
     def pack_to_mdd(self, dir_data, ftitle):
         """ 仅打包 mdd (取代 MdxBuilder.exe) """
@@ -214,7 +214,7 @@ class EbookUtils:
                     if mdd_rk == 0:
                         self.mdict(['-a', tmp_dir, ftitle+'.mdd'])
                     else:
-                        self.mdict(['-a', tmp_dir, f'{ftitle}.{str(mdd_rk)}.mdd'])
+                        self.mdict(['-a', tmp_dir, f'{ftitle}.{mdd_rk!s}.mdd'])
                     # 打包完再移回去
                     for fname in os.listdir(tmp_dir):
                         os.rename(os.path.join(tmp_dir, fname), os.path.join(dir_data, fname))
@@ -232,7 +232,7 @@ class EbookUtils:
                 if len(os.listdir(tmp_dir)) == 0:
                     pass
                 else:
-                    self.mdict(['-a', tmp_dir, f'{ftitle}.{str(mdd_rk)}.mdd'])
+                    self.mdict(['-a', tmp_dir, f'{ftitle}.{mdd_rk!s}.mdd'])
                     # 移回去
                     for fname in os.listdir(tmp_dir):
                         os.rename(os.path.join(tmp_dir, fname), os.path.join(dir_data, fname))
@@ -277,7 +277,7 @@ class EbookUtils:
             os.makedirs(dir_out)
         file_png = os.path.join(dir_out, '%06d.png')
         # 开始转换
-        os.system(f'{file_exe} draw -o "{file_png}" -F png -r {str(dpi)} "{file_pdf}"')
+        os.system(f'{file_exe} draw -o "{file_png}" -F png -r {dpi!s} "{file_pdf}"')
         print('转换完成！')
 
     # def convert_pdf_to_imgs_fitz(self, file_pdf, dir_out, dpi=300):
@@ -322,9 +322,7 @@ class EbookUtils:
         if not os.path.exists(dir_out):
             os.makedirs(dir_out)
         imgs.sort(key=lambda x: x["path"], reverse=False)
-        n = 0
-        for img in imgs:
-            n += 1
+        for n, img in enumerate(imgs, start=1):
             os.rename(img["path"], os.path.join(dir_out, str(n).zfill(6)+img["ext"]))
         shutil.rmtree(dir_tmp_me)
         print('提取完成！')
@@ -429,7 +427,7 @@ class EbookUtils:
                 n += 1
             tmp_pdf = os.path.join(dir_pdf_frag, str(k).zfill(3)+'.pdf')
             os.system(f'{file_exe} create -o {tmp_pdf} -O compress-images {pcs_str}')
-            print(f'[{str(min(n,page_num))}/{str(page_num)}]PDF合成中')
+            print(f'[{min(n,page_num)!s}/{page_num!s}]PDF合成中')
             pdfs.append(tmp_pdf)
             k += 1
         # merge fragments
@@ -462,7 +460,7 @@ class EbookUtils:
         file_ini = os.path.join(dir_program, 'FreePic2Pdf.ini')
         with open(file_ini_bak, 'r', encoding='utf-16le') as fr:
             para_item = 'PARA_DIR_SRC='+dir_imgs.replace('\\', '\\\\')
-            text = re.sub(r'^PARA_DIR_SRC=.+$', para_item, fr.read(), flags=re.M)
+            text = re.sub(r'^PARA_DIR_SRC=.+$', para_item, fr.read(), flags=re.MULTILINE)
             with open(file_ini, 'w', encoding='utf-16le') as fw:
                 fw.write(text)
         # 1.启动 FreePic2Pdf 程序
@@ -493,7 +491,7 @@ class EbookUtils:
         file_ini = os.path.join(dir_program, 'Pdg2Pic.ini')
         with open(file_ini_bak, 'r', encoding='utf-16le') as fr:
             para_item = 'PARA_DIR_TGT='+dir_out.replace('\\', '\\\\')
-            text = re.sub(r'^PARA_DIR_TGT=.+$', para_item, fr.read(), flags=re.M)
+            text = re.sub(r'^PARA_DIR_TGT=.+$', para_item, fr.read(), flags=re.MULTILINE)
             with open(file_ini, 'w', encoding='utf-16le') as fw:
                 fw.write(text)
         # 1.启动 Pdg2Pic 程序
@@ -502,10 +500,10 @@ class EbookUtils:
         dlg_main = app.Pdg2Pic
         # 2.读取输入的 PDG 文件夹
         dlg_main.wait('ready', timeout=10).children()[3].click()  # 打开文件夹选择框
-        dlg_sel = app.window(title=u'选择存放PDG文件的文件夹')
+        dlg_sel = app.window(title='选择存放PDG文件的文件夹')
         dlg_sel.wait('ready', timeout=5).children()[6].set_text(dir_pdg)
         dlg_sel.children()[9].click()
-        app.window(title=u'格式统计').wait('ready', timeout=3).children()[0].click()
+        app.window(title='格式统计').wait('ready', timeout=3).children()[0].click()
         # dlg_sum = app.window(title=u'格式统计').wait('ready', timeout=3)
         # while True:
         #     if 'OK' in dlg_sum.children()[0].texts():
@@ -515,7 +513,7 @@ class EbookUtils:
         #         time.sleep(0.05)
         # 3.开始转换
         while True:
-            if not app.window(title=u'格式统计').exists():
+            if not app.window(title='格式统计').exists():
                 dlg_main.children()[0].click()  # 点击执行
                 break
             else:
@@ -540,30 +538,30 @@ class EbookUtils:
         app = Application(backend='win32').start(os.path.join(dir_program, 'FreePic2Pdf.exe'))
         dlg_main = app.FreePic2Pdf
         dlg_main.wait('ready', timeout=10).children()[30].click()  # 点击进入书签导入/导出窗口
-        dlg_iebkmk = app.window(title=u'Import/Export PDF Bookmark')
+        dlg_iebkmk = app.window(title='Import/Export PDF Bookmark')
         if export_flg:
             dlg_iebkmk.wait('ready', timeout=5).children()[26].select(1)  # 切换到书签导出栏
         # 2.选定 pdf 文件
         time.sleep(0.1)
         dlg_iebkmk.children()[4].click()  # 打开文件选择框
-        dlg_sel_pdf = app.window(title=u'Select File')
+        dlg_sel_pdf = app.window(title='Select File')
         dlg_sel_pdf.wait('ready', timeout=5).children()[12].set_text(file_pdf)
         dlg_sel_pdf.children()[16].click()  # 选中待处理的 pdf 文件
         # 3.选定书签文件夹
         if not os.path.exists(dir_bkmk):
             os.makedirs(dir_bkmk)
         while True:
-            if not app.window(title=u'Select File').exists():
+            if not app.window(title='Select File').exists():
                 break
             else:
                 time.sleep(0.05)
         dlg_iebkmk.children()[9].click()  # 打开文件夹选择框
-        dlg_sel_folder = app.window(title=u'Source Folder')
+        dlg_sel_folder = app.window(title='Source Folder')
         dlg_sel_folder.wait('ready', timeout=5).children()[6].set_edit_text(dir_bkmk)
         dlg_sel_folder.children()[9].click()
         # 3.开始导入/导出
         while True:
-            if not app.window(title=u'Source Folder').exists():
+            if not app.window(title='Source Folder').exists():
                 dlg_iebkmk.children()[0].click()  # 点击执行
                 break
             else:
@@ -615,7 +613,7 @@ class EbookUtils:
                 bkmk_itf = fr.read()
                 base_page = re.search(r'(?<=BasePage=)(\d+)', bkmk_itf)
                 if base_page:
-                    bkmk_itf = re.sub(r'^TextPage=$', 'TextPage='+base_page.group(0), bkmk_itf, flags=re.M)
+                    bkmk_itf = re.sub(r'^TextPage=$', 'TextPage='+base_page.group(0), bkmk_itf, flags=re.MULTILINE)
                 fr.seek(0)
                 fr.truncate()
                 fr.write(bkmk_itf)

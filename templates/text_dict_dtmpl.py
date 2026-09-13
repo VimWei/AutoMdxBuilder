@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # @Date    : 2023-11-16 00:00:48
 # @Author  : Litles (litlesme@gmail.com)
 # @Link    : https://github.com/Litles
@@ -8,8 +7,9 @@
 import os
 import re
 import shutil
-from tomlkit import dumps
+
 from colorama import Fore
+from tomlkit import dumps
 
 
 class TextDictDtmpl:
@@ -70,10 +70,10 @@ class TextDictDtmpl:
         with open(file_final_txt, 'r', encoding='utf-8') as fr:
             text = fr.read()
             # 1.提取 index_all
-            pat_index = re.compile(r'^<div class="index-all" style="display:none;">(\d+)\|(.+?)\|\d+</div>.+?(<div class="(entry-body|toc-list)">[^\r\n]+</div>)$', flags=re.M+re.S)
+            pat_index = re.compile(r'^<div class="index-all" style="display:none;">(\d+)\|(.+?)\|\d+</div>.+?(<div class="(entry-body|toc-list)">[^\r\n]+</div>)$', flags=re.MULTILINE+re.DOTALL)
             for t in pat_index.findall(text):
                 if t[2].startswith('<div class="entry-body">'):
-                    body = re.search(r'<div class="entry-body">(.+?)</div>$', t[2], flags=re.M).group(1)
+                    body = re.search(r'<div class="entry-body">(.+?)</div>$', t[2], flags=re.MULTILINE).group(1)
                 else:
                     body = ''
                 dct = {
@@ -83,7 +83,7 @@ class TextDictDtmpl:
                 }
                 dcts.append(dct)
             # 2.识别 name_abbr
-            mth = re.search(r'^<link rel="stylesheet" type="text/css" href="([^>/\"\.]+?)\.css"/>$', text, flags=re.M)
+            mth = re.search(r'^<link rel="stylesheet" type="text/css" href="([^>/\"\.]+?)\.css"/>$', text, flags=re.MULTILINE)
             if mth:
                 name_abbr = mth.group(1).upper()
             else:
@@ -105,15 +105,14 @@ class TextDictDtmpl:
         # 2.syns.txt
         if syns:
             with open(os.path.join(out_dir, 'syns.txt'), 'w', encoding='utf-8') as fw:
-                for s in syns:
-                    fw.write(f'{s[0]}\t{s[1]}\n')
+                fw.writelines(f'{s[0]}\t{s[1]}\n' for s in syns)
         # 3. build.toml 文件
         self.settings.load_build_toml(os.path.join(self.settings.dir_lib, self.settings.build_tmpl), False)
         self.settings.build["global"]["templ_choice"] = "D"
         self.settings.build["global"]["name"] = dict_name
         self.settings.build["global"]["name_abbr"] = name_abbr
         # 判断 add_headwords
-        if not re.search(r'^<div class="entry-headword">[^<]+</div>$', text, flags=re.M):
+        if not re.search(r'^<div class="entry-headword">[^<]+</div>$', text, flags=re.MULTILINE):
             self.settings.build["template"]["d"]["add_headwords"] = False
         with open(os.path.join(out_dir, 'build.toml'), 'w', encoding='utf-8') as fw:
             fw.write(dumps(self.settings.build))
@@ -128,17 +127,16 @@ class TextDictDtmpl:
             with open(file_out, 'w', encoding='utf-8') as fw:
                 tops = []
                 headwords_stem = []
-                i = 0
                 len_dcts = len(dcts)
-                for dct in dcts:
+                for i, dct in enumerate(dcts):
                     part_css = f'<link rel="stylesheet" type="text/css" href="{self.settings.name_abbr.lower()}.css"/>\n'
                     # 词头, 索引备份
                     if dct["level"] == -1:
                         part_title = f'{dct["title"]}\n'
-                        part_index = f'<div class="index-all" style="display:none;">{str(dct["id"]).zfill(10)}|{dct["title"]}|{str(dct["vol_n"])}</div>\n'
+                        part_index = f'<div class="index-all" style="display:none;">{str(dct["id"]).zfill(10)}|{dct["title"]}|{dct["vol_n"]!s}</div>\n'
                     else:
                         part_title = f'{self.settings.name_abbr}_{dct["title"]}\n'
-                        part_index = f'<div class="index-all" style="display:none;">{str(dct["id"]).zfill(10)}|【L{str(dct["level"])}】{dct["title"]}|{str(dct["vol_n"])}</div>\n'
+                        part_index = f'<div class="index-all" style="display:none;">{str(dct["id"]).zfill(10)}|【L{dct["level"]!s}】{dct["title"]}|{dct["vol_n"]!s}</div>\n'
                     # top-navi-level 部分
                     part_top = '<div class="top-navi-level">'
                     part_top += f'<span class="navi-item"><a href="entry://TOC_{self.settings.name_abbr}">🕮</a></span>'
@@ -157,13 +155,10 @@ class TextDictDtmpl:
                     if dct["level"] != -1 and dct["body"] == '':
                         part_headword = ''
                         part_body = ''
-                    elif dct["level"] != -1 and dct["body"] != '':
+                    elif dct["level"] != -1 and dct["body"] != '' or not self.settings.add_headwords:
                         part_headword = ''
                         part_body = f'<div class="entry-body">{dct["body"]}</div>\n'
-                    elif not self.settings.add_headwords:
-                        part_headword = ''
-                        part_body = f'<div class="entry-body">{dct["body"]}</div>\n'
-                    elif re.match(r'<(p|div|html|body|title|head)', dct["body"], flags=re.I):
+                    elif re.match(r'<(p|div|html|body|title|head)', dct["body"], flags=re.IGNORECASE):
                         part_headword = f'<div class="entry-headword">{dct["title"]}</div>\n'
                         part_body = f'<div class="entry-body">{dct["body"]}</div>\n'
                     else:
@@ -205,7 +200,6 @@ class TextDictDtmpl:
                             pass
                         else:
                             headwords_stem.append(dct["title"])
-                    i += 1
                 # 3.写入总目词条
                 toc_entry = f'TOC_{self.settings.name_abbr}\n'
                 toc_entry += f'<link rel="stylesheet" type="text/css" href="{self.settings.name_abbr.lower()}.css"/>\n'
@@ -217,8 +211,7 @@ class TextDictDtmpl:
                 toc_entry += '</div>\n</>\n'
                 fw.write(toc_entry)
                 # 4.章节重定向
-                for word in headwords_stem:
-                    fw.write(f'{word}\n@@@LINK={self.settings.name_abbr}_{word}\n</>\n')
+                fw.writelines(f'{word}\n@@@LINK={self.settings.name_abbr}_{word}\n</>\n' for word in headwords_stem)
             print("文本词条(有导航栏)已生成")
         else:
             pass
@@ -235,9 +228,7 @@ class TextDictDtmpl:
             shutil.copy(file_index_all, final_index_all)
             # 读取检查总 index_all 文件
             with open(final_index_all, 'r', encoding='utf-8') as fr:
-                i = 0
-                for line in fr:
-                    i += 1
+                for i, line in enumerate(fr, start=1):
                     mth_stem = self.settings.pat_stem_text.match(line)
                     if mth_stem:
                         # 章节
@@ -254,7 +245,7 @@ class TextDictDtmpl:
         elif self.settings.multi_volume:
             # 2.扫描识别分 index_all
             lst_file_index_all = []
-            pat1 = re.compile(r'index_all_(\d+)', flags=re.I)
+            pat1 = re.compile(r'index_all_(\d+)', flags=re.IGNORECASE)
             lst_n = []
             for fname in os.listdir(dir_input):
                 if fname.endswith('.txt') and pat1.match(fname):
@@ -275,7 +266,7 @@ class TextDictDtmpl:
                 self.settings.volume_num = len(lst_file_index_all)
                 # 3.合并各 index_all 文本, 顺便检查格式
                 lst_file_index_all.sort(key=lambda dct: dct["vol_n"], reverse=False)
-                pat_vname = re.compile(r'index_all_\d+_(.+?)\.txt', flags=re.I)
+                pat_vname = re.compile(r'index_all_\d+_(.+?)\.txt', flags=re.IGNORECASE)
                 with open(final_index_all, 'w', encoding='utf-8') as fw:
                     break_flg = False
                     for x in range(len(lst_file_index_all)):
@@ -293,16 +284,14 @@ class TextDictDtmpl:
                                     vname = '第'+str(lst_file_index_all[x]["vol_n"]).zfill(2)+'卷'
                             fw.write('【L0】'+vname+'\t\n')
                             # 整合开始
-                            i = 0
-                            for line in fr:
-                                i += 1
+                            for i, line in enumerate(fr, start=1):
                                 mth_stem = self.settings.pat_stem_text.match(line)
                                 if mth_stem:
                                     # 章节
                                     if mth_stem.group(3) == '':
-                                        fw.write(f'【L{str(int(mth_stem.group(1))+1)}】{mth_stem.group(2)}\t\n')
+                                        fw.write(f'【L{int(mth_stem.group(1))+1!s}】{mth_stem.group(2)}\t\n')
                                     else:
-                                        fw.write(f'【L{str(int(mth_stem.group(1))+1)}】{mth_stem.group(2)}\t{mth_stem.group(3)}\n')
+                                        fw.write(f'【L{int(mth_stem.group(1))+1!s}】{mth_stem.group(2)}\t{mth_stem.group(3)}\n')
                                 elif self.settings.pat_tab.match(line):
                                     # 词条
                                     mth = self.settings.pat_tab.match(line)

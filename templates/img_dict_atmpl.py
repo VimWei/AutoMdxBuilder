@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # @Date    : 2023-11-16 00:00:27
 # @Author  : Litles (litlesme@gmail.com)
 # @Link    : https://github.com/Litles
@@ -7,10 +6,11 @@
 
 import os
 import re
-from copy import copy
 import shutil
-from tomlkit import dumps, loads, array, comment, nl
+from copy import copy
+
 from colorama import Fore
+from tomlkit import array, comment, dumps, loads, nl
 
 
 class ImgDictAtmpl:
@@ -44,7 +44,7 @@ class ImgDictAtmpl:
             # 0.准备图像, 确定 navi_items
             navi_items = None
             if self.settings.multi_volume:
-                imgs, img_lens = self.func.prepare_imgs(check_result[2], dir_imgs_tmp, self.settings.volume_num)
+                imgs, _img_lens = self.func.prepare_imgs(check_result[2], dir_imgs_tmp, self.settings.volume_num)
                 # 判断是否有 toc
                 if isinstance(check_result[1], list):
                     lst = list(filter(lambda item: item is not None, check_result[1]))
@@ -53,7 +53,7 @@ class ImgDictAtmpl:
                 elif check_result[1]:
                     navi_items = self.settings.navi_items
             else:
-                imgs, img_lens = self.func.prepare_imgs(check_result[2], dir_imgs_tmp)
+                imgs, _img_lens = self.func.prepare_imgs(check_result[2], dir_imgs_tmp)
                 if check_result[1]:
                     navi_items = self.settings.navi_items
             # 1.开始生成各部分源文本
@@ -92,18 +92,16 @@ class ImgDictAtmpl:
             body_start = [1 for i in range(volume_num)]
             abbrs = []
             if not multi_vols_flg:
-                pat_img = re.compile(r'^<div class="main-img">.*?<div class="pic"><img src="/([a-zA-Z|\d]+)_A(\d+)\.\w+">', flags=re.M)
+                pat_img = re.compile(r'^<div class="main-img">.*?<div class="pic"><img src="/([a-zA-Z|\d]+)_A(\d+)\.\w+">', flags=re.MULTILINE)
                 for m in pat_img.findall(text):
-                    if int(m[1])+1 > body_start[0]:
-                        body_start[0] = int(m[1])+1
+                    body_start[0] = max(body_start[0], int(m[1])+1)
                     if m[0].upper() not in abbrs:
                         abbrs.append(m[0].upper())
             else:
-                pat_img = re.compile(r'^<div class="main-img">.*?<div class="pic"><img src="/[^\/]+?/([a-zA-Z|\d]+)\[(\d+)\]_A(\d+)\.\w+">', flags=re.M)
+                pat_img = re.compile(r'^<div class="main-img">.*?<div class="pic"><img src="/[^\/]+?/([a-zA-Z|\d]+)\[(\d+)\]_A(\d+)\.\w+">', flags=re.MULTILINE)
                 for m in pat_img.findall(text):
                     vol_i = int(m[1])-1
-                    if int(m[2])+1 > body_start[vol_i]:
-                        body_start[vol_i] = int(m[2])+1
+                    body_start[vol_i] = max(body_start[vol_i], int(m[2])+1)
                     if m[0].upper() not in abbrs:
                         abbrs.append(m[0].upper())
             if abbrs:
@@ -113,7 +111,7 @@ class ImgDictAtmpl:
                 name_abbr = 'XXXXCD'
             # 提取 navi_items
             navi_items = array()
-            top_navi = re.search(r'^<div class="top-navi">(.*?)</div>$', text, flags=re.M)
+            top_navi = re.search(r'^<div class="top-navi">(.*?)</div>$', text, flags=re.MULTILINE)
             if not multi_vols_flg:
                 pat_item = re.compile(r'<span class="navi-item"><a href="entry://[A-Z|\d]+_([^">]+)">([^<]+)</a></span>')
                 for m in pat_item.findall(top_navi[1]):
@@ -185,31 +183,31 @@ class ImgDictAtmpl:
             with open(os.path.join(out_dir, 'index.txt'), 'w', encoding='utf-8') as fw:
                 for d in index:
                     if d["vol_n"] == 1:
-                        fw.write(f'{d["name"]}\t{str(d["page"])}\n')
+                        fw.write(f'{d["name"]}\t{d["page"]!s}\n')
                     else:
-                        fw.write(f'{d["name"]}\t[{str(d["vol_n"])}]{str(d["page"])}\n')
+                        fw.write(f'{d["name"]}\t[{d["vol_n"]!s}]{d["page"]!s}\n')
         # 2.toc.txt
         if toc:
             if not multi_vols_flg:
                 with open(os.path.join(out_dir, 'toc.txt'), 'w', encoding='utf-8') as fw:
                     # 获取TOC总目录词条
-                    toc_entry = re.search(r'^TOC_.*?</>$', text, flags=re.S+re.M)
+                    toc_entry = re.search(r'^TOC_.*?</>$', text, flags=re.DOTALL+re.MULTILINE)
                     if toc_entry:
-                        pat_link = re.compile(r'<a href="entry://'+name_abbr+r'_([^\">]+)\">', flags=re.I)
-                        for m in re.findall(r'^(\t*)<li>(.+?)<[\/ulia]+>', toc_entry.group(0), flags=re.M):
+                        pat_link = re.compile(r'<a href="entry://'+name_abbr+r'_([^\">]+)\">', flags=re.IGNORECASE)
+                        for m in re.findall(r'^(\t*)<li>(.+?)<[\/ulia]+>', toc_entry.group(0), flags=re.MULTILINE):
                             mth = pat_link.match(m[1])
                             if mth:
                                 for d in toc:
                                     if mth.group(1) == d["name"]:
-                                        fw.write(f'{m[0]}{d["name"]}\t{str(d["page"])}\n')
+                                        fw.write(f'{m[0]}{d["name"]}\t{d["page"]!s}\n')
                                         break
                             else:
                                 fw.write(f'{m[0]}{m[1]}\n')
             else:
-                toc_entries = re.findall(r'^TOC_'+name_abbr+r'(\[\d+\])(.*?)</>$', text, flags=re.S+re.M)
+                toc_entries = re.findall(r'^TOC_'+name_abbr+r'(\[\d+\])(.*?)</>$', text, flags=re.DOTALL+re.MULTILINE)
                 if toc_entries:
                     # 获取分卷TOC目录词条
-                    pat_vname = re.compile(r'^<div class="toc-title">分目录（(.+?)）</div>', flags=re.M)
+                    pat_vname = re.compile(r'^<div class="toc-title">分目录（(.+?)）</div>', flags=re.MULTILINE)
                     for entry in toc_entries:
                         mth_vname = pat_vname.search(entry[1])
                         if mth_vname:
@@ -217,32 +215,32 @@ class ImgDictAtmpl:
                         else:
                             vname = ''
                         vol_n = int(entry[0].strip('[]'))
-                        pat_link = re.compile(r'<a href="entry://'+name_abbr+r'\[\d+\]_([^\">]+)\">', flags=re.I)
+                        pat_link = re.compile(r'<a href="entry://'+name_abbr+r'\[\d+\]_([^\">]+)\">', flags=re.IGNORECASE)
                         with open(os.path.join(out_dir, f'toc_{str(vol_n).zfill(2)}{vname}.txt'), 'w', encoding='utf-8') as fw:
-                            for m in re.findall(r'^(\t*)<li>(.+?)<[\/ulia]+>', entry[1], flags=re.M):
+                            for m in re.findall(r'^(\t*)<li>(.+?)<[\/ulia]+>', entry[1], flags=re.MULTILINE):
                                 mth = pat_link.match(m[1])
                                 if mth:
                                     for d in toc:
                                         if vol_n == d["vol_n"] and mth.group(1) == d["name"]:
-                                            fw.write(f'{m[0]}{d["name"]}\t{str(d["page"])}\n')
+                                            fw.write(f'{m[0]}{d["name"]}\t{d["page"]!s}\n')
                                             break
                                 else:
                                     fw.write(f'{m[0]}{m[1]}\n')
                 else:
                     with open(os.path.join(out_dir, 'toc.txt'), 'w', encoding='utf-8') as fw:
                         # 获取TOC总目录词条
-                        toc_entry = re.search(r'^TOC_.*?</>$', text, flags=re.S+re.M)
+                        toc_entry = re.search(r'^TOC_.*?</>$', text, flags=re.DOTALL+re.MULTILINE)
                         if toc_entry:
-                            pat_link = re.compile(r'<a href="entry://'+name_abbr+r'\[(\d+)\]_([^\">]+)\">', flags=re.I)
-                            for m in re.findall(r'^(\t*)<li>(.+?)<[\/ulia]+>', toc_entry.group(0), flags=re.M):
+                            pat_link = re.compile(r'<a href="entry://'+name_abbr+r'\[(\d+)\]_([^\">]+)\">', flags=re.IGNORECASE)
+                            for m in re.findall(r'^(\t*)<li>(.+?)<[\/ulia]+>', toc_entry.group(0), flags=re.MULTILINE):
                                 mth = pat_link.match(m[1])
                                 if mth:
                                     for d in toc:
                                         if int(mth.group(1)) == d["vol_n"] and mth.group(2) == d["name"]:
                                             if d["vol_n"] > 1:
-                                                fw.write(f'{m[0]}{d["name"]}\t[{mth.group(1)}]{str(d["page"])}\n')
+                                                fw.write(f'{m[0]}{d["name"]}\t[{mth.group(1)}]{d["page"]!s}\n')
                                             else:
-                                                fw.write(f'{m[0]}{d["name"]}\t{str(d["page"])}\n')
+                                                fw.write(f'{m[0]}{d["name"]}\t{d["page"]!s}\n')
                                             break
                                 else:
                                     fw.write(f'{m[0]}{m[1]}\n')
@@ -250,8 +248,7 @@ class ImgDictAtmpl:
         # 3.syns.txt
         if syns:
             with open(os.path.join(out_dir, 'syns.txt'), 'w', encoding='utf-8') as fw:
-                for s in syns:
-                    fw.write(f'{s[0]}\t{s[1]}\n')
+                fw.writelines(f'{s[0]}\t{s[1]}\n' for s in syns)
         # 4.build.toml
         self.settings.load_build_toml(os.path.join(self.settings.dir_lib, self.settings.build_tmpl), False)
         self.settings.build["global"]["templ_choice"] = "A"
@@ -265,12 +262,12 @@ class ImgDictAtmpl:
         # 判断分栏选项
         if file_css and os.path.split(file_css)[1].lower() == name_abbr.lower()+'.css':
             with open(file_css, 'r', encoding='utf-8') as fr:
-                if not re.search(r'/\*<insert_css: auto_split>\*/', fr.read(), flags=re.I):
+                if not re.search(r'/\*<insert_css: auto_split>\*/', fr.read(), flags=re.IGNORECASE):
                     self.settings.build["template"]["a"]["auto_split_columns"] = 2
         # 判断 navi_items
         if navi_items:
-            build_str = re.sub(r'[\r\n]+#navi_items = \[.*?#\][^\r\n]*?', '', dumps(self.settings.build), flags=re.S+re.I)
-            build_str = re.sub(r'[\r\n]+#\s*?（可选）导航栏链接.+$', '', build_str, flags=re.M)
+            build_str = re.sub(r'[\r\n]+#navi_items = \[.*?#\][^\r\n]*?', '', dumps(self.settings.build), flags=re.DOTALL+re.IGNORECASE)
+            build_str = re.sub(r'[\r\n]+#\s*?（可选）导航栏链接.+$', '', build_str, flags=re.MULTILINE)
             self.settings.build = loads(build_str)
             self.settings.build["template"]["a"].add(comment("（可选）导航栏链接, 有目录 (toc.txt) 就可以设置"))
             self.settings.build["template"]["a"].add("navi_items", navi_items.multiline(True))
@@ -358,8 +355,7 @@ class ImgDictAtmpl:
                 if toc_txts:
                     with open(file_out, 'w', encoding='utf-8') as fw:
                         fw.write(top_toc_txt)
-                        for txt in toc_txts:
-                            fw.write(txt)
+                        fw.writelines(toc_txts)
                     print("目录词条已生成")
             # 情况二: 无分目录
             else:
@@ -479,7 +475,7 @@ class ImgDictAtmpl:
         elif self.settings.multi_volume:
             html += f'<span class="navi-item"><a href="entry://TOC_{self.settings.name_abbr}">🕮</a></span>'
             for item in navi_items:
-                mth = re.match(r'\[(\d+)\](.+?)$', item["ref"], flags=re.I)
+                mth = re.match(r'\[(\d+)\](.+?)$', item["ref"], flags=re.IGNORECASE)
                 if mth:
                     html += f'<span class="navi-item"><a href="entry://{self.settings.name_abbr}[{mth.group(1).zfill(2)}]_{mth.group(2)}">{item["a"]}</a></span>'
                 else:
@@ -545,8 +541,8 @@ class ImgDictAtmpl:
     def _check_txt_vols(self, dir_input, prefix, dir_out):
         """ 识别分卷的 index, toc 文本 """
         done_flg = True
-        pat = re.compile(prefix+r'_(\d+)', flags=re.I)
-        pat_vname = re.compile(prefix+r'_\d+_(.+?)\.txt', flags=re.I)
+        pat = re.compile(prefix+r'_(\d+)', flags=re.IGNORECASE)
+        pat_vname = re.compile(prefix+r'_\d+_(.+?)\.txt', flags=re.IGNORECASE)
         # 1.开始识别,读取
         lst_vols = [[] for i in range(self.settings.volume_num)]
         break_flg = False
@@ -614,8 +610,7 @@ class ImgDictAtmpl:
             for i in range(len(lst_vols)):
                 if lst_vols[i]:
                     with open(os.path.join(dir_out, f'{prefix}_{str(i+1).zfill(2)}.txt'), 'a', encoding='utf-8') as fa:
-                        for item in lst_vols[i]:
-                            fa.write(item)
+                        fa.writelines(lst_vols[i])
         return done_flg
 
     def _check_txt_top(self, file_in, prefix, dir_out):
@@ -676,13 +671,11 @@ class ImgDictAtmpl:
                 for i in range(len(lst_vols)):
                     if lst_vols[i]:
                         with open(os.path.join(dir_out, f'{prefix}_{str(i+1).zfill(2)}.txt'), 'a', encoding='utf-8') as fa:
-                            for item in lst_vols[i]:
-                                fa.write(item)
+                            fa.writelines(lst_vols[i])
                 # 生成总 toc 文件
                 if prefix == 'toc':
                     with open(os.path.join(dir_out, f'{prefix}.txt'), 'w', encoding='utf-8') as fw:
-                        for item in lst_top:
-                            fw.write(item)
+                        fw.writelines(lst_top)
         return done_flg
 
     def _check_raw_files(self):
@@ -720,7 +713,7 @@ class ImgDictAtmpl:
                 prepare_flg = self._check_txt_vols(dir_input, 'index', dir_index)
             lst_file_index = [None for i in range(self.settings.volume_num)]
             for fname in os.listdir(dir_index):
-                vol_n = int(re.match(r'index_(\d+)', fname, flags=re.I).group(1))
+                vol_n = int(re.match(r'index_(\d+)', fname, flags=re.IGNORECASE).group(1))
                 lst_file_index[vol_n-1] = os.path.join(dir_index, fname)
             # --- 2.toc ---
             # 检查总目录
@@ -734,7 +727,7 @@ class ImgDictAtmpl:
             lst_file_toc = [None for i in range(self.settings.volume_num)]
             for fname in os.listdir(dir_toc):
                 # 要先判断是否匹配, 因为可能存在 toc.txt
-                mth = re.match(r'toc_(\d+)', fname, flags=re.I)
+                mth = re.match(r'toc_(\d+)', fname, flags=re.IGNORECASE)
                 if mth:
                     vol_n = int(mth.group(1))
                     lst_file_toc[vol_n-1] = os.path.join(dir_toc, fname)
@@ -746,7 +739,7 @@ class ImgDictAtmpl:
                 # 检查图像文件夹
                 lst_dir_imgs = [None for i in range(self.settings.volume_num)]
                 dct_dir_imgs = {"main": lst_dir_imgs, "others": []}
-                pat_imgs = re.compile(r'vol_(\d+)', flags=re.I)
+                pat_imgs = re.compile(r'vol_(\d+)', flags=re.IGNORECASE)
                 for fname in os.listdir(dir_imgs):
                     fp = os.path.join(dir_imgs, fname)
                     if os.path.isdir(fp) and pat_imgs.match(fname):
@@ -793,10 +786,11 @@ class ImgDictAtmpl:
                 else:
                     check_result = [lst_file_index, lst_file_toc, dct_dir_imgs]
                 for i in range(self.settings.volume_num):
-                    if lst_file_index[i] or lst_file_toc[i]:
-                        if not self._check_img_vol(lst_file_index[i], lst_file_toc[i], dct_dir_imgs["main"][i], i):
-                            check_result = []
-                            break
+                    if (lst_file_index[i] or lst_file_toc[i]) and not self._check_img_vol(
+                        lst_file_index[i], lst_file_toc[i], dct_dir_imgs["main"][i], i
+                    ):
+                        check_result = []
+                        break
             else:
                 if self._check_img_vol(file_index, file_toc, dir_imgs):
                     check_result = [file_index, file_toc, dir_imgs]

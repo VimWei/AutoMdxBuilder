@@ -1,23 +1,24 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # @Date    : 2023-11-16 00:00:17
 # @Author  : Litles (litlesme@gmail.com)
 # @Link    : https://github.com/Litles
 # @Version : 1.6
 
 # import logging
-import traceback
 import os
 import re
 import shutil
+import traceback
+
 from colorama import Fore, just_fix_windows_console
-from settings import Settings
+
+from ebook_utils import EbookUtils
 from func_lib import FuncLib
+from settings import Settings
 from templates.img_dict_atmpl import ImgDictAtmpl
 from templates.img_dict_btmpl import ImgDictBtmpl
 from templates.text_dict_ctmpl import TextDictCtmpl
 from templates.text_dict_dtmpl import TextDictDtmpl
-from ebook_utils import EbookUtils
 
 
 class AutoMdxBuilder:
@@ -267,9 +268,11 @@ class AutoMdxBuilder:
                 if self.settings.split_columns == 2:
                     with open(os.path.join(self.settings.dir_lib, self.settings.css_split_2), 'r', encoding='utf-8') as fr:
                         s = fr.read()
-                    with open(file_css, 'w', encoding='utf-8') as fw:
-                        with open(file_css_tmpl, 'r', encoding='utf-8') as fr:
-                            fw.write(fr.read().replace('/*<insert_css: auto_split>*/', s))
+                    with (
+                        open(file_css, 'w', encoding='utf-8') as fw,
+                        open(file_css_tmpl, 'r', encoding='utf-8') as fr,
+                    ):
+                        fw.write(fr.read().replace('/*<insert_css: auto_split>*/', s))
                 else:
                     shutil.copy(file_css_tmpl, file_css)
                 # 开始打包
@@ -290,9 +293,11 @@ class AutoMdxBuilder:
                 if self.settings.split_columns == 2:
                     with open(os.path.join(self.settings.dir_lib, self.settings.css_split_2), 'r', encoding='utf-8') as fr:
                         s = fr.read()
-                    with open(file_css, 'w', encoding='utf-8') as fw:
-                        with open(file_css_tmpl, 'r', encoding='utf-8') as fr:
-                            fw.write(fr.read().replace('/*<insert_css: auto_split>*/', s))
+                    with (
+                        open(file_css, 'w', encoding='utf-8') as fw,
+                        open(file_css_tmpl, 'r', encoding='utf-8') as fr,
+                    ):
+                        fw.write(fr.read().replace('/*<insert_css: auto_split>*/', s))
                 else:
                     shutil.copy(file_css_tmpl, file_css)
                 # 开始打包
@@ -359,8 +364,8 @@ class AutoMdxBuilder:
             text = ''
             if fp.endswith('.info.html'):
                 with open(fp, 'r', encoding='utf-8') as fr:
-                    pat = re.compile(r'<div><br/>([^><]*?), built with AutoMdxBuilder[^><]*?based on template ([A-D])\.<br/></div>', flags=re.I)
-                    pat_multi = re.compile(r'<div><br/>([^><]*?), built with AutoMdxBuilder[^><]*?based on template ([ABD]) in (\d+) volumes\.<br/></div>', flags=re.I)
+                    pat = re.compile(r'<div><br/>([^><]*?), built with AutoMdxBuilder[^><]*?based on template ([A-D])\.<br/></div>', flags=re.IGNORECASE)
+                    pat_multi = re.compile(r'<div><br/>([^><]*?), built with AutoMdxBuilder[^><]*?based on template ([ABD]) in (\d+) volumes\.<br/></div>', flags=re.IGNORECASE)
                     text = fr.read()
                     if pat.search(text):
                         # 符合条件, 支持还原
@@ -449,7 +454,7 @@ class AutoMdxBuilder:
             try:
                 with open(os.path.join(dir_bkmk, 'FreePic2Pdf_bkmk.txt'), 'r', encoding='utf-16le') as fr:
                     text = fr.read()
-                    line_num = len(re.findall(r'^', text, flags=re.M))
+                    line_num = len(re.findall(r'^', text, flags=re.MULTILINE))
                     if line_num <= 3:
                         print(Fore.YELLOW + "INFO: " + Fore.RESET + "未识别到目录, 将不会生成 toc.txt")
                     else:
@@ -471,10 +476,10 @@ class AutoMdxBuilder:
             shutil.copy(os.path.join(self.settings.dir_lib, "build.toml"), os.path.join(out_dir, "build.toml"))
             with open(os.path.join(out_dir, "build.toml"), 'r+', encoding='utf-8') as fr:
                 text = fr.read()
-                text = re.sub(r'^templ_choice = "\w"', 'templ_choice = "A"', text, flags=re.I+re.M)
-                text = re.sub(r'^name = "[^"]+?"', f'name = "{fname.split(".")[0]}"', text, flags=re.I+re.M)
-                text = re.sub(r'^name_abbr = "[^"]+?"', 'name_abbr = "XXXXXX"', text, flags=re.I+re.M)
-                text = re.sub(r'^body_start = \d+', f'body_start = {str(body_start)}', text, flags=re.I+re.M)
+                text = re.sub(r'^templ_choice = "\w"', 'templ_choice = "A"', text, flags=re.IGNORECASE+re.MULTILINE)
+                text = re.sub(r'^name = "[^"]+?"', f'name = "{fname.split(".")[0]}"', text, flags=re.IGNORECASE+re.MULTILINE)
+                text = re.sub(r'^name_abbr = "[^"]+?"', 'name_abbr = "XXXXXX"', text, flags=re.IGNORECASE+re.MULTILINE)
+                text = re.sub(r'^body_start = \d+', f'body_start = {body_start!s}', text, flags=re.IGNORECASE+re.MULTILINE)
                 fr.seek(0)
                 fr.truncate()
                 fr.write(text)
@@ -514,10 +519,10 @@ class AutoMdxBuilder:
             shutil.copy(os.path.join(self.settings.dir_lib, "build.toml"), os.path.join(out_dir, "build.toml"))
             with open(os.path.join(out_dir, "build.toml"), 'r+', encoding='utf-8') as fr:
                 text = fr.read()
-                text = re.sub(r'^templ_choice = "\w"', 'templ_choice = "A"', text, flags=re.I+re.M)
-                text = re.sub(r'^name = "[^"]+?"', f'name = "{name}"', text, flags=re.I+re.M)
-                text = re.sub(r'^name_abbr = "[^"]+?"', 'name_abbr = "XXXXXX"', text, flags=re.I+re.M)
-                text = re.sub(r'^body_start = \d+', f'body_start = {str(body_start)}', text, flags=re.I+re.M)
+                text = re.sub(r'^templ_choice = "\w"', 'templ_choice = "A"', text, flags=re.IGNORECASE+re.MULTILINE)
+                text = re.sub(r'^name = "[^"]+?"', f'name = "{name}"', text, flags=re.IGNORECASE+re.MULTILINE)
+                text = re.sub(r'^name_abbr = "[^"]+?"', 'name_abbr = "XXXXXX"', text, flags=re.IGNORECASE+re.MULTILINE)
+                text = re.sub(r'^body_start = \d+', f'body_start = {body_start!s}', text, flags=re.IGNORECASE+re.MULTILINE)
                 fr.seek(0)
                 fr.truncate()
                 fr.write(text)
@@ -632,7 +637,7 @@ if __name__ == '__main__':
     try:
         main()
         # logging.info('The program worked fine.')
-    except:
+    except Exception:  # noqa: BLE001  顶层错误处理，捕获所有异常以打印回溯
         # logging.error(traceback.format_exc())
         print(traceback.format_exc())
         print(Fore.RED + "ERROR: " + Fore.RESET + "由于上述原因, 程序已中止运行")

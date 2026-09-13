@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # @Date    : 2023-11-16 00:00:41
 # @Author  : Litles (litlesme@gmail.com)
 # @Link    : https://github.com/Litles
@@ -7,8 +6,9 @@
 
 import os
 import re
-from tomlkit import dumps
+
 from colorama import Fore
+from tomlkit import dumps
 
 
 class TextDictCtmpl:
@@ -72,7 +72,7 @@ class TextDictCtmpl:
         with open(file_final_txt, 'r', encoding='utf-8') as fr:
             text = fr.read()
             # 1.提取 index_all
-            pat_index = re.compile(r'^<div class="index" style="display:none;">(\d+)\|(.+?)</div>.+?<div class="entry-body">(.+?)</div>$', flags=re.M+re.S)
+            pat_index = re.compile(r'^<div class="index" style="display:none;">(\d+)\|(.+?)</div>.+?<div class="entry-body">(.+?)</div>$', flags=re.MULTILINE+re.DOTALL)
             for t in pat_index.findall(text):
                 dct = {
                     "id": t[0],
@@ -81,7 +81,7 @@ class TextDictCtmpl:
                 }
                 dcts.append(dct)
             # 2.识别 name_abbr
-            mth = re.search(r'^<link rel="stylesheet" type="text/css" href="([^>/\"\.]+?)\.css"/>$', text, flags=re.M)
+            mth = re.search(r'^<link rel="stylesheet" type="text/css" href="([^>/\"\.]+?)\.css"/>$', text, flags=re.MULTILINE)
             if mth:
                 name_abbr = mth.group(1).upper()
             else:
@@ -99,15 +99,14 @@ class TextDictCtmpl:
         # 2.syns.txt
         if syns:
             with open(os.path.join(out_dir, 'syns.txt'), 'w', encoding='utf-8') as fw:
-                for s in syns:
-                    fw.write(f'{s[0]}\t{s[1]}\n')
+                fw.writelines(f'{s[0]}\t{s[1]}\n' for s in syns)
         # 3.build.toml 文件
         self.settings.load_build_toml(os.path.join(self.settings.dir_lib, self.settings.build_tmpl), False)
         self.settings.build["global"]["templ_choice"] = "C"
         self.settings.build["global"]["name"] = dict_name
         self.settings.build["global"]["name_abbr"] = name_abbr
         # 判断 add_headwords
-        if not re.search(r'^<div class="entry-headword">[^<]+</div>$', text, flags=re.M):
+        if not re.search(r'^<div class="entry-headword">[^<]+</div>$', text, flags=re.MULTILINE):
             self.settings.build["template"]["c"]["add_headwords"] = False
         with open(os.path.join(out_dir, 'build.toml'), 'w', encoding='utf-8') as fw:
             fw.write(dumps(self.settings.build))
@@ -115,29 +114,29 @@ class TextDictCtmpl:
     def _make_entries_text(self, file_index, file_out):
         headwords = []
         """ (一) 生成文本(主)词条 """
-        with open(file_out, 'a', encoding='utf-8') as fa:
-            with open(file_index, 'r', encoding='utf-8') as fr:
-                i = 0
-                for line in fr:
-                    i += 1
-                    if self.settings.pat_tab.match(line):
-                        mth = self.settings.pat_tab.match(line)
-                        part_title = f'{mth.group(1)}\n'
-                        part_css = f'<link rel="stylesheet" type="text/css" href="{self.settings.name_abbr.lower()}.css"/>\n'
-                        part_index = f'<div class="index" style="display:none;">{str(i).zfill(10)}|{mth.group(1)}</div>\n'
-                        if not self.settings.add_headwords:
-                            part_headword = ''
-                        else:
-                            part_headword = f'<div class="entry-headword">{mth.group(1)}</div>\n'
-                        if re.match(r'<(p|div|html|body|title|head)', mth.group(2), flags=re.I):
-                            part_body = f'<div class="entry-body">{mth.group(2)}</div>\n'
-                        else:
-                            part_body = f'<div class="entry-body"><p>{mth.group(2)}</p></div>\n'
-                        # 将完整词条写入文件
-                        fa.write(part_title+part_css+part_index+part_headword+part_body+'</>\n')
-                        headwords.append(mth.group(1))
+        with (
+            open(file_out, 'a', encoding='utf-8') as fa,
+            open(file_index, 'r', encoding='utf-8') as fr,
+        ):
+            for i, line in enumerate(fr, start=1):
+                if self.settings.pat_tab.match(line):
+                    mth = self.settings.pat_tab.match(line)
+                    part_title = f'{mth.group(1)}\n'
+                    part_css = f'<link rel="stylesheet" type="text/css" href="{self.settings.name_abbr.lower()}.css"/>\n'
+                    part_index = f'<div class="index" style="display:none;">{str(i).zfill(10)}|{mth.group(1)}</div>\n'
+                    if not self.settings.add_headwords:
+                        part_headword = ''
                     else:
-                        print(Fore.MAGENTA + "WARN: " + Fore.RESET + f"第 {i} 行未匹配, 已忽略")
+                        part_headword = f'<div class="entry-headword">{mth.group(1)}</div>\n'
+                    if re.match(r'<(p|div|html|body|title|head)', mth.group(2), flags=re.IGNORECASE):
+                        part_body = f'<div class="entry-body">{mth.group(2)}</div>\n'
+                    else:
+                        part_body = f'<div class="entry-body"><p>{mth.group(2)}</p></div>\n'
+                    # 将完整词条写入文件
+                    fa.write(part_title+part_css+part_index+part_headword+part_body+'</>\n')
+                    headwords.append(mth.group(1))
+                else:
+                    print(Fore.MAGENTA + "WARN: " + Fore.RESET + f"第 {i} 行未匹配, 已忽略")
         print("文本词条已生成")
         return headwords
 
@@ -157,9 +156,7 @@ class TextDictCtmpl:
         index_check_num = self.func.text_file_check(file_index)
         if index_check_num == 2:
             with open(file_index, 'r', encoding='utf-8') as fr:
-                i = 0
-                for line in fr:
-                    i += 1
+                for i, line in enumerate(fr, start=1):
                     if not self.settings.pat_tab.match(line):
                         print(Fore.RED + "ERROR: " + Fore.RESET + f"index.txt 第 {i} 行未匹配, 请检查")
                         pass_flg = False

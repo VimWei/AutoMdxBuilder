@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # @Date    : 2023-11-16 00:00:53
 # @Author  : Litles (litlesme@gmail.com)
 # @Link    : https://github.com/Litles
@@ -9,13 +8,14 @@ import os
 import re
 import shutil
 from copy import copy
-from datetime import datetime
+from datetime import UTC, datetime
+
 # import chardet
 from colorama import Fore
 from opencc import OpenCC
 
 
-class FuncLib():
+class FuncLib:
     """ functions for invoking """
     def __init__(self, amb):
         self.settings = amb.settings
@@ -28,9 +28,7 @@ class FuncLib():
             dcts = []
             with open(file_index_all, 'r', encoding='utf-8') as fr:
                 level = 0
-                i = 0
-                for line in fr:
-                    i += 1
+                for i, line in enumerate(fr, start=1):
                     # 要先扫描章节再扫描词条
                     mth_stem = self.settings.pat_stem.match(line)
                     if mth_stem:
@@ -73,14 +71,14 @@ class FuncLib():
                             s_vol = '['+str(dct["vol_n"])+']'
                         # 开始写入
                         if dct["page"] != 0:
-                            fw.write('\t'*dct["level"] + f'{dct["name"]}\t{s_vol}{str(dct["page"])}\n')
+                            fw.write('\t'*dct["level"] + f'{dct["name"]}\t{s_vol}{dct["page"]!s}\n')
                         elif fill_flg:
                             # 向后检索页码来填充
                             for d in dcts[x+1:]:
                                 if d["page"] != 0:
                                     p_fill = d["page"]
                                     break
-                            fw.write('\t'*dct["level"] + f'{dct["name"]}\t{s_vol}{str(p_fill)}\n')
+                            fw.write('\t'*dct["level"] + f'{dct["name"]}\t{s_vol}{p_fill!s}\n')
                             # 如果向后仍未检索到页码(待补充)
                         else:
                             fw.write('\t'*dct["level"] + f'{dct["name"]}\n')
@@ -127,16 +125,16 @@ class FuncLib():
                             str_p = str(pairs[i]["page"])
                         # 写入索引条
                         if vol_n > 1:
-                            fw.write(f'{pairs[i]["title"]}\t[{str(vol_n)}]{str_p}\n')
+                            fw.write(f'{pairs[i]["title"]}\t[{vol_n!s}]{str_p}\n')
                         else:
                             fw.write(f'{pairs[i]["title"]}\t{str_p}\n')
                     elif pairs[i]["page"] == 0:
-                        fw.write(f'【L{str(pairs[i]["level"])}】{pairs[i]["title"]}\t\n')
+                        fw.write(f'【L{pairs[i]["level"]!s}】{pairs[i]["title"]}\t\n')
                     else:
                         if vol_n > 1:
-                            fw.write(f'【L{str(pairs[i]["level"])}】{pairs[i]["title"]}\t[{str(vol_n)}]{str(pairs[i]["page"])}\n')
+                            fw.write(f'【L{pairs[i]["level"]!s}】{pairs[i]["title"]}\t[{vol_n!s}]{pairs[i]["page"]!s}\n')
                         else:
-                            fw.write(f'【L{str(pairs[i]["level"])}】{pairs[i]["title"]}\t{str(pairs[i]["page"])}\n')
+                            fw.write(f'【L{pairs[i]["level"]!s}】{pairs[i]["title"]}\t{pairs[i]["page"]!s}\n')
             return True
         else:
             return False
@@ -262,7 +260,7 @@ class FuncLib():
                         else:
                             vol_toc = ''
                         if toc_pairs[i]["page"] != 0:
-                            fw.write('\t'*level + f'{toc_pairs[i]["title"]}\t{vol_toc}{str(toc_pairs[i]["page"])}\n')
+                            fw.write('\t'*level + f'{toc_pairs[i]["title"]}\t{vol_toc}{toc_pairs[i]["page"]!s}\n')
                         else:
                             fw.write('\t'*level + f'{toc_pairs[i]["title"]}\n')
                         # 2.写入符合的索引行
@@ -274,7 +272,7 @@ class FuncLib():
                             rk = index_pairs[x]["vol_n"]*100000+index_pairs[x]["page"]
                             # a.小于当前章节: 写入(排序错误)
                             if (rk < toc_pairs[i]["vol_n"]*100000+toc_pairs[i]["page_new"]):
-                                fw.write('\t'*(level+1) + f'{index_pairs[x]["title"]}\t{vol_index}{str(index_pairs[x]["page"])}\n')
+                                fw.write('\t'*(level+1) + f'{index_pairs[x]["title"]}\t{vol_index}{index_pairs[x]["page"]!s}\n')
                                 j = x + 1
                                 if toc_pairs[i] not in toc_wrong:
                                     toc_wrong.append(toc_pairs[i])
@@ -283,13 +281,13 @@ class FuncLib():
                                 break
                             # b.等于当前章节, 小于后一章节: 写入(词条和章节孰前孰后存疑,故记录)
                             elif (rk == toc_pairs[i]["vol_n"]*100000+toc_pairs[i]["page_new"]) and (rk < toc_pairs[i+1]["vol_n"]*100000+toc_pairs[i+1]["page_new"]):
-                                fw.write('\t'*(level+1) + f'{index_pairs[x]["title"]}\t{vol_index}{str(index_pairs[x]["page"])}\n')
+                                fw.write('\t'*(level+1) + f'{index_pairs[x]["title"]}\t{vol_index}{index_pairs[x]["page"]!s}\n')
                                 j = x + 1
                                 if toc_pairs[i] not in toc_unsure:
                                     toc_unsure.append(toc_pairs[i])
                             # c.大于当前章节, 小于后一章节: 写入
                             elif (rk > toc_pairs[i]["vol_n"]*100000+toc_pairs[i]["page_new"]) and (rk < toc_pairs[i+1]["vol_n"]*100000+toc_pairs[i+1]["page_new"]):
-                                fw.write('\t'*(level+1) + f'{index_pairs[x]["title"]}\t{vol_index}{str(index_pairs[x]["page"])}\n')
+                                fw.write('\t'*(level+1) + f'{index_pairs[x]["title"]}\t{vol_index}{index_pairs[x]["page"]!s}\n')
                                 j = x + 1
                             # d.剩余情况: 大于当前章节,大于等于后一章节
                             else:
@@ -302,7 +300,7 @@ class FuncLib():
                     else:
                         vol_toc = ''
                     if toc_pairs[-1]["page"] != 0:
-                        fw.write('\t'*level + f'{toc_pairs[-1]["title"]}\t{vol_toc}{str(toc_pairs[-1]["page"])}\n')
+                        fw.write('\t'*level + f'{toc_pairs[-1]["title"]}\t{vol_toc}{toc_pairs[-1]["page"]!s}\n')
                     else:
                         fw.write('\t'*level + f'{toc_pairs[-1]["title"]}\n')
                     # 写入剩余的索引行
@@ -311,13 +309,11 @@ class FuncLib():
                             vol_index = '['+str(index_pairs[x]["vol_n"])+']'
                         else:
                             vol_index = ''
-                        fw.write('\t'*(level+1) + f'{index_pairs[x]["title"]}\t{vol_index}{str(index_pairs[x]["page"])}\n')
-                        if index_pairs[x]["vol_n"]*100000+index_pairs[x]["page"] < toc_pairs[-1]["vol_n"]*100000+toc_pairs[-1]["page_new"]:
-                            if toc_pairs[-1] not in toc_wrong:
-                                toc_wrong.append(toc_pairs[-1])
-                        elif index_pairs[x]["vol_n"]*100000+index_pairs[x]["page"] == toc_pairs[-1]["vol_n"]*100000+toc_pairs[-1]["page_new"]:
-                            if toc_pairs[-1] not in toc_unsure:
-                                toc_unsure.append(toc_pairs[-1])
+                        fw.write('\t'*(level+1) + f'{index_pairs[x]["title"]}\t{vol_index}{index_pairs[x]["page"]!s}\n')
+                        if index_pairs[x]["vol_n"]*100000+index_pairs[x]["page"] < toc_pairs[-1]["vol_n"]*100000+toc_pairs[-1]["page_new"] and toc_pairs[-1] not in toc_wrong:
+                            toc_wrong.append(toc_pairs[-1])
+                        elif index_pairs[x]["vol_n"]*100000+index_pairs[x]["page"] == toc_pairs[-1]["vol_n"]*100000+toc_pairs[-1]["page_new"] and toc_pairs[-1] not in toc_unsure:
+                            toc_unsure.append(toc_pairs[-1])
                 if self.toc_all_to_index(file_tmp, file_index_all):
                     print(Fore.GREEN + "\n处理完成, 生成在同 index.txt 目录下" + Fore.RESET)
                     # 输出错误和存疑的 toc 部分以便检查
@@ -332,9 +328,9 @@ class FuncLib():
                                     else:
                                         vol_toc = ''
                                     if t["page"] == 0:
-                                        fw.write(f'【L{str(t["level"])}】{t["title"]}\t\n')
+                                        fw.write(f'【L{t["level"]!s}】{t["title"]}\t\n')
                                     else:
-                                        fw.write(f'【L{str(t["level"])}】{t["title"]}\t{vol_toc}{str(t["page"])}\n')
+                                        fw.write(f'【L{t["level"]!s}】{t["title"]}\t{vol_toc}{t["page"]!s}\n')
                             if toc_unsure:
                                 fw.write('========= 排序存疑 ==========\n')
                                 for t in toc_unsure:
@@ -343,9 +339,9 @@ class FuncLib():
                                     else:
                                         vol_toc = ''
                                     if t["page"] == 0:
-                                        fw.write(f'【L{str(t["level"])}】{t["title"]}\t\n')
+                                        fw.write(f'【L{t["level"]!s}】{t["title"]}\t\n')
                                     else:
-                                        fw.write(f'【L{str(t["level"])}】{t["title"]}\t{vol_toc}{str(t["page"])}\n')
+                                        fw.write(f'【L{t["level"]!s}】{t["title"]}\t{vol_toc}{t["page"]!s}\n')
                         print(Fore.MAGENTA + "WARN: " + Fore.RESET + "存在排序存疑的条目, 已记录在日志 _need_checking.log 中，需手动调整完善")
         else:
             print(Fore.RED + "ERROR: " + Fore.RESET + "读取目录文件失败")
@@ -366,11 +362,9 @@ class FuncLib():
                 pat1 = self.settings.pat_stem_text  # 匹配章节词头
                 pat2 = self.settings.pat_tab  # 匹配词条词头
                 pat3 = self.settings.pat_index_blank  # 匹配仅导航
-            i = 0
             navi_bar = [None for i in range(10)]
             navi_bar_tmp = []
-            for line in fr:
-                i += 1
+            for i, line in enumerate(fr, start=1):
                 checked_flg = False
                 vol_n = vol_i+1
                 # 匹配章节
@@ -578,18 +572,20 @@ class FuncLib():
         """ 繁简转换 """
         if trans_type == 'T':
             converter_s2t = OpenCC('s2t.json')
-            with open(file_out, 'w', encoding='utf-8') as fw:
-                with open(file_in, 'r', encoding='utf-8') as fr:
-                    for line in fr:
-                        # 简转繁
-                        fw.write(converter_s2t.convert(line))
+            with (
+                open(file_out, 'w', encoding='utf-8') as fw,
+                open(file_in, 'r', encoding='utf-8') as fr,
+            ):
+                # 简转繁
+                fw.writelines(converter_s2t.convert(line) for line in fr)
         else:
             converter_t2s = OpenCC('t2s.json')
-            with open(file_out, 'w', encoding='utf-8') as fw:
-                with open(file_in, 'r', encoding='utf-8') as fr:
-                    for line in fr:
-                        # 繁转简
-                        fw.write(converter_t2s.convert(line))
+            with (
+                open(file_out, 'w', encoding='utf-8') as fw,
+                open(file_in, 'r', encoding='utf-8') as fr,
+            ):
+                # 繁转简
+                fw.writelines(converter_t2s.convert(line) for line in fr)
         print(f"\n转换结果已生成: {file_out}")
 
     def text_file_check(self, text_file):
@@ -599,9 +595,7 @@ class FuncLib():
         else:
             text = ''
             with open(text_file, 'r', encoding='utf-8') as fr:
-                i = 0
-                for line in fr:
-                    i += 1
+                for i, line in enumerate(fr, start=1):
                     if i < 6:
                         text += line
                     else:
@@ -642,6 +636,7 @@ class FuncLib():
         return entry_total
 
     def generate_info_html(self, file_info_raw, file_out, dict_name, templ_choice=None, volume_num=None):
+        now = datetime.now(UTC).astimezone().strftime('%Y/%m/%d')
         with open(file_out, 'w', encoding='utf-8') as fw:
             # 读取 info.html
             if file_info_raw and os.path.isfile(file_info_raw):
@@ -649,11 +644,11 @@ class FuncLib():
                     fw.write(fr.read().rstrip())
             # 打上 AMB 标志 (有模板则是制作, 没有则认为是打包)
             if templ_choice and volume_num:
-                fw.write(f"\n<div><br/>{dict_name}, built with AutoMdxBuilder {self.settings.version} on {datetime.now().strftime('%Y/%m/%d')}, based on template {templ_choice.upper()} in {volume_num} volumes.<br/></div>\n")
+                fw.write(f"\n<div><br/>{dict_name}, built with AutoMdxBuilder {self.settings.version} on {now}, based on template {templ_choice.upper()} in {volume_num} volumes.<br/></div>\n")
             elif templ_choice:
-                fw.write(f"\n<div><br/>{dict_name}, built with AutoMdxBuilder {self.settings.version} on {datetime.now().strftime('%Y/%m/%d')}, based on template {templ_choice.upper()}.<br/></div>\n")
+                fw.write(f"\n<div><br/>{dict_name}, built with AutoMdxBuilder {self.settings.version} on {now}, based on template {templ_choice.upper()}.<br/></div>\n")
             else:
-                fw.write(f"\n<div><br/>{dict_name}, packed with AutoMdxBuilder {self.settings.version} on {datetime.now().strftime('%Y/%m/%d')}.<br/></div>\n")
+                fw.write(f"\n<div><br/>{dict_name}, packed with AutoMdxBuilder {self.settings.version} on {now}.<br/></div>\n")
         return True
 
     def get_item_list(self, dct):
@@ -662,9 +657,7 @@ class FuncLib():
             pass
         elif dct["entry_list"]:
             html += '<div class="toc-list"><p>'
-            i = 0
-            for item in dct["children"]:
-                i += 1
+            for i, item in enumerate(dct["children"], start=1):
                 if i == 1:
                     html += f'<a href="entry://{item}">{item}</a>'
                 else:
@@ -755,11 +748,9 @@ class FuncLib():
         # 2.重命名
         dname = os.path.split(dir_imgs_out)[1].strip('\\/')
         imgs = []
-        n = 0
         len_digit = self.settings.len_digit  # 获取序号位数
-        for img_file in img_files:
-            n += 1
-            f_dir, f_name = os.path.split(img_file)
+        for n, img_file in enumerate(img_files, start=1):
+            f_name = os.path.split(img_file)[1]
             f_ext = os.path.splitext(f_name)[1]
             # 区分正文和辅页, 辅页前缀'A', 正文前缀'B'
             if multi_vols_flg:

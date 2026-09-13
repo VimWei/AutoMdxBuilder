@@ -1,16 +1,16 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # @Date    : 2023-11-16 00:00:58
 # @Author  : Litles (litlesme@gmail.com)
 # @Link    : https://github.com/Litles
 # @Version : 1.6
 
 import os
-import sys
 import re
+import sys
+
+from colorama import Fore
 from tomli import load
 from tomlkit import loads
-from colorama import Fore
 
 
 class Settings:
@@ -69,7 +69,7 @@ class Settings:
         # TAB分隔(通用)
         self.pat_tab = re.compile(r'([^\t]+)\t([^\t\r\n]+)[\r\n]*$')
         # 提取
-        self.pat_relink = re.compile(r'^([^\r\n]+)[\r\n]+@@@LINK=([^\r\n]+)[\r\n]+</>[\r\n]*$', flags=re.M)
+        self.pat_relink = re.compile(r'^([^\r\n]+)[\r\n]+@@@LINK=([^\r\n]+)[\r\n]+</>[\r\n]*$', flags=re.MULTILINE)
 
         # 预设样式/模板
         self.dir_lib = os.path.join(self.dir_bundle, 'lib')
@@ -182,7 +182,7 @@ class Settings:
                     self.dir_output = os.path.join(os.path.split(self.dir_input)[0], self.name) + '_mdict'
                 else:
                     self.dir_output = os.path.join(self.dir_input, self.name) + '_mdict'
-            except:
+            except Exception:  # noqa: BLE001  读取配置失败原因多样，统一报错
                 build_flg = False
                 print(Fore.RED + "ERROR: " + Fore.RESET + "读取 build.toml 文件失败, 请检查格式是否规范、选项是否遗漏")
         # 生成 TOML 对象

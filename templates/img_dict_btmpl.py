@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # @Date    : 2023-11-16 00:00:34
 # @Author  : Litles (litlesme@gmail.com)
 # @Link    : https://github.com/Litles
@@ -9,8 +8,9 @@ import os
 import re
 import shutil
 from copy import copy
-from tomlkit import dumps
+
 from colorama import Fore
+from tomlkit import dumps
 
 
 class ImgDictBtmpl:
@@ -109,7 +109,7 @@ class ImgDictBtmpl:
         with open(file_final_txt, 'r', encoding='utf-8') as fr:
             text = fr.read()
             # 1.提取 index_all
-            pat_index = re.compile(r'^<div class="index-all" style="display:none;">(\d+)\|(.*?)\|(\d+)\|([\d|\-]+)</div>$', flags=re.M)
+            pat_index = re.compile(r'^<div class="index-all" style="display:none;">(\d+)\|(.*?)\|(\d+)\|([\d|\-]+)</div>$', flags=re.MULTILINE)
             for t in pat_index.findall(text):
                 dct = {
                     "id": t[0],
@@ -122,18 +122,16 @@ class ImgDictBtmpl:
             body_start = [1 for i in range(volume_num)]
             abbrs = []
             if not multi_vols_flg:
-                pat_head = re.compile(r'^([A-Z|\d]+)_A(\d+)[\r\n]+<link rel="stylesheet"', flags=re.M)
+                pat_head = re.compile(r'^([A-Z|\d]+)_A(\d+)[\r\n]+<link rel="stylesheet"', flags=re.MULTILINE)
                 for m in pat_head.findall(text):
-                    if int(m[1])+1 > body_start[0]:
-                        body_start[0] = int(m[1])+1
+                    body_start[0] = max(body_start[0], int(m[1])+1)
                     if m[0].upper() not in abbrs:
                         abbrs.append(m[0].upper())
             else:
-                pat_head = re.compile(r'^([A-Z|\d]+)\[(\d+)\]_A(\d+)[\r\n]+<link rel="stylesheet"', flags=re.M)
+                pat_head = re.compile(r'^([A-Z|\d]+)\[(\d+)\]_A(\d+)[\r\n]+<link rel="stylesheet"', flags=re.MULTILINE)
                 for m in pat_head.findall(text):
                     vol_i = int(m[1])-1
-                    if int(m[2])+1 > body_start[vol_i]:
-                        body_start[vol_i] = int(m[2])+1
+                    body_start[vol_i] = max(body_start[vol_i], int(m[2])+1)
                     if m[0].upper() not in abbrs:
                         abbrs.append(m[0].upper())
             if abbrs:
@@ -164,19 +162,17 @@ class ImgDictBtmpl:
                     fw.write(f'{dct["name"]}\t\n')
                 else:
                     if dct["vol_n"] > 1:
-                        fw.write(f'{dct["name"]}\t[{str(dct["vol_n"])}]{str(dct["page"])}\n')
+                        fw.write(f'{dct["name"]}\t[{dct["vol_n"]!s}]{dct["page"]!s}\n')
                     else:
-                        fw.write(f'{dct["name"]}\t{str(dct["page"])}\n')
+                        fw.write(f'{dct["name"]}\t{dct["page"]!s}\n')
         # 2.syns.txt
         if syns:
             with open(os.path.join(out_dir, 'syns.txt'), 'w', encoding='utf-8') as fw:
-                for s in syns:
-                    fw.write(f'{s[0]}\t{s[1]}\n')
+                fw.writelines(f'{s[0]}\t{s[1]}\n' for s in syns)
         # 3.index.txt
         if index:
             with open(os.path.join(out_dir, 'index.txt'), 'w', encoding='utf-8') as fw:
-                for s in index:
-                    fw.write(f'{s[0]}\t{s[1]}\n')
+                fw.writelines(f'{s[0]}\t{s[1]}\n' for s in index)
         # 4.build.toml 文件
         self.settings.load_build_toml(os.path.join(self.settings.dir_lib, self.settings.build_tmpl), False)
         self.settings.build["global"]["templ_choice"] = "B"
@@ -192,7 +188,7 @@ class ImgDictBtmpl:
         # 判断分栏选项
         if file_css and os.path.split(file_css)[1].lower() == name_abbr.lower()+'.css':
             with open(file_css, 'r', encoding='utf-8') as fr:
-                if not re.search(r'/\*<insert_css: auto_split>\*/', fr.read(), flags=re.I):
+                if not re.search(r'/\*<insert_css: auto_split>\*/', fr.read(), flags=re.IGNORECASE):
                     self.settings.build["template"]["b"]["auto_split_columns"] = 2
         with open(os.path.join(out_dir, 'build.toml'), 'w', encoding='utf-8') as fw:
             fw.write(dumps(self.settings.build))
@@ -229,13 +225,13 @@ class ImgDictBtmpl:
                 n = 1
             elif i in lst_vpi:
                 # 取卷首图片
-                imgs[i]["dct"] = list(filter(lambda d: d["page_index"] == i, vpage_dcts))[0]
+                imgs[i]["dct"] = next(filter(lambda d: d["page_index"] == i, vpage_dcts))
                 n = 1
             else:
                 # 同上条
                 imgs[i]["dct"] = imgs[i-1]["dct"]
                 n += 1
-            imgs[i]["mark"] = f'[P{str(n)}]'
+            imgs[i]["mark"] = f'[P{n!s}]'
 
     def _make_entries_with_navi(self, imgs, img_lens, dcts, file_out):
         """ (二) 生成主体词条, 带层级导航 """
@@ -262,8 +258,7 @@ class ImgDictBtmpl:
         # 2.开始制作
         with open(file_out, 'w', encoding='utf-8') as fw:
             # 1.卷首词条
-            for dct in vpage_dcts:
-                fw.write(self._get_entry_with_navi(dct, imgs))
+            fw.writelines(self._get_entry_with_navi(dct, imgs) for dct in vpage_dcts)
             # 2.全索引章节和词条部分
             tops = []
             headwords_stem = []
@@ -294,8 +289,7 @@ class ImgDictBtmpl:
                 entry = self._get_entry_with_navi(imgs[x]["dct"], imgs, x)
                 fw.write(entry)
             # 5.章节重定向
-            for word in headwords_stem:
-                fw.write(f'{word}\n@@@LINK={self.settings.name_abbr}_{word}\n</>\n')
+            fw.writelines(f'{word}\n@@@LINK={self.settings.name_abbr}_{word}\n</>\n' for word in headwords_stem)
         print("图像词条(有导航栏)已生成")
         return headwords
 
@@ -311,12 +305,12 @@ class ImgDictBtmpl:
             if dct["level"] == -1:
                 part_title = f'{dct["title"]}\n'
                 if dct["id"]:
-                    part_index = f'<div class="index-all" style="display:none;">{str(dct["id"]).zfill(10)}|{dct["title"]}|{str(dct["vol_n"])}|{dct["body"]}</div>\n'
+                    part_index = f'<div class="index-all" style="display:none;">{str(dct["id"]).zfill(10)}|{dct["title"]}|{dct["vol_n"]!s}|{dct["body"]}</div>\n'
                 else:
                     part_index = ''
             else:
                 part_title = f'{self.settings.name_abbr}_{dct["title"]}\n'
-                part_index = f'<div class="index-all" style="display:none;">{str(dct["id"]).zfill(10)}|【L{str(dct["level"])}】{dct["title"]}|{str(dct["vol_n"])}|{dct["body"]}</div>\n'
+                part_index = f'<div class="index-all" style="display:none;">{str(dct["id"]).zfill(10)}|【L{dct["level"]!s}】{dct["title"]}|{dct["vol_n"]!s}|{dct["body"]}</div>\n'
         # 2.css 引用部分
         part_css = f'<link rel="stylesheet" type="text/css" href="{self.settings.name_abbr.lower()}.css"/>\n'
         # 3.top-navi-level 部分
@@ -439,8 +433,7 @@ class ImgDictBtmpl:
                     if not os.path.exists(self.settings.dir_input_tmp):
                         os.makedirs(self.settings.dir_input_tmp)
                     with open(os.path.join(self.settings.dir_input_tmp, '_need_checking['+str(vol_i+1).zfill(2)+'].log'), 'w', encoding='utf-8') as fw:
-                        for mi in mess_items:
-                            fw.write(mi)
+                        fw.writelines(mess_items)
                     print(Fore.MAGENTA + "WARN: " + Fore.RESET + "索引中存在乱序的词条, 已输出在日志 _need_checking.log 中, 建议检查")
                 pass_flg = True
         return pass_flg
@@ -450,9 +443,9 @@ class ImgDictBtmpl:
         done_flg = True
         lst_file_index_all = [None for i in range(self.settings.volume_num)]
         final_index_all = os.path.join(dir_out, self.settings.fname_index_all)
-        pat_vname = re.compile(r'(index_all|toc_all)_\d+_(.+?)\.txt', flags=re.I)
+        pat_vname = re.compile(r'(index_all|toc_all)_\d+_(.+?)\.txt', flags=re.IGNORECASE)
         # (1) 遍历 index_all
-        pat1 = re.compile(r'index_all_(\d+)', flags=re.I)
+        pat1 = re.compile(r'index_all_(\d+)', flags=re.IGNORECASE)
         for fname in os.listdir(dir_input):
             if fname.endswith('.txt') and pat1.match(fname):
                 vol_n = int(pat1.match(fname).group(1))
@@ -473,7 +466,7 @@ class ImgDictBtmpl:
                 elif not os.path.exists(fp_new):
                     print(Fore.MAGENTA + "WARN: " + Fore.RESET + f"{fname} 不在分卷范围, 已忽略")
         # (2) 遍历 toc_all
-        pat2 = re.compile(r'toc_all_(\d+)', flags=re.I)
+        pat2 = re.compile(r'toc_all_(\d+)', flags=re.IGNORECASE)
         for fname in os.listdir(dir_input):
             if fname.endswith('.txt') and pat2.match(fname):
                 vol_n = int(pat2.match(fname).group(1))
@@ -513,24 +506,22 @@ class ImgDictBtmpl:
                             else:
                                 fw.write('【L0】第'+str(x+1).zfill(2)+'卷\t\n')
                             # 整合开始
-                            i = 0
-                            for line in fr:
-                                i += 1
+                            for i, line in enumerate(fr, start=1):
                                 mth_stem = self.settings.pat_stem.match(line)
                                 if mth_stem:
                                     # 无卷标章节
                                     if mth_stem.group(3) == '':
-                                        fw.write(f'【L{str(int(mth_stem.group(1))+1)}】{mth_stem.group(2)}\t\n')
+                                        fw.write(f'【L{int(mth_stem.group(1))+1!s}】{mth_stem.group(2)}\t\n')
                                     else:
-                                        fw.write(f'【L{str(int(mth_stem.group(1))+1)}】{mth_stem.group(2)}\t{str_v}{mth_stem.group(3)}\n')
+                                        fw.write(f'【L{int(mth_stem.group(1))+1!s}】{mth_stem.group(2)}\t{str_v}{mth_stem.group(3)}\n')
                                 elif self.settings.pat_stem_vol.match(line):
                                     # 有卷标章节
                                     mth_vol_stem = self.settings.pat_stem_vol.match(line)
                                     if int(mth_vol_stem.group(3)) == x+1:
                                         if mth_vol_stem.group(4) == '':
-                                            fw.write(f'【L{str(int(mth_vol_stem.group(1))+1)}】{mth_vol_stem.group(2)}\t\n')
+                                            fw.write(f'【L{int(mth_vol_stem.group(1))+1!s}】{mth_vol_stem.group(2)}\t\n')
                                         else:
-                                            fw.write(f'【L{str(int(mth_vol_stem.group(1))+1)}】{mth_vol_stem.group(2)}\t{str_v}{mth_vol_stem.group(4)}\n')
+                                            fw.write(f'【L{int(mth_vol_stem.group(1))+1!s}】{mth_vol_stem.group(2)}\t{str_v}{mth_vol_stem.group(4)}\n')
                                     else:
                                         print(Fore.RED + "ERROR: " + Fore.RESET + f"第 {x+1} 卷第 {i} 行卷标与文件名不符, 请检查")
                                         done_flg = False
@@ -582,9 +573,7 @@ class ImgDictBtmpl:
         if proc_flg:
             lst_sup = [[] for i in range(self.settings.volume_num)]
             with open(final_index_all, 'r', encoding='utf-8') as fr:
-                i = 0
-                for line in fr:
-                    i += 1
+                for i, line in enumerate(fr, start=1):
                     mth_stem = self.settings.pat_stem.match(line)
                     if mth_stem:
                         # 无卷标章节
@@ -622,8 +611,7 @@ class ImgDictBtmpl:
                     if lst_sup[i]:
                         fp = os.path.join(dir_out, f'index_all_{str(i+1).zfill(2)}.txt')
                         with open(fp, 'w', encoding='utf-8') as fw:
-                            for item in lst_sup[i]:
-                                fw.write(item)
+                            fw.writelines(lst_sup[i])
         return done_flg
 
     def _check_raw_files(self):
@@ -660,7 +648,7 @@ class ImgDictBtmpl:
                     print(Fore.RED + "ERROR: " + Fore.RESET + "未读取到 index_all/toc_all")
                     prepare_flg = False
                 elif os.path.exists(file_index_all):
-                    pat = re.compile(r'index_all_(\d+)', flags=re.I)
+                    pat = re.compile(r'index_all_(\d+)', flags=re.IGNORECASE)
                     for fname in os.listdir(dir_index_all):
                         mth = pat.match(fname)
                         if mth:
@@ -673,7 +661,7 @@ class ImgDictBtmpl:
                 # 检查图像文件夹
                 lst_dir_imgs = [None for i in range(self.settings.volume_num)]
                 dct_dir_imgs = {"main": lst_dir_imgs, "others": []}
-                pat_imgs = re.compile(r'vol_(\d+)', flags=re.I)
+                pat_imgs = re.compile(r'vol_(\d+)', flags=re.IGNORECASE)
                 for fname in os.listdir(dir_imgs):
                     fp = os.path.join(dir_imgs, fname)
                     if os.path.isdir(fp) and pat_imgs.match(fname):
@@ -708,10 +696,11 @@ class ImgDictBtmpl:
                 if None in lst_file_index_all:
                     print(Fore.MAGENTA + "WARN: " + Fore.RESET + "索引未覆盖全部分卷")
                 for i in range(self.settings.volume_num):
-                    if lst_file_index_all[i]:
-                        if not self._check_img_vol(lst_file_index_all[i], dct_dir_imgs["main"][i], i):
-                            check_result = []
-                            break
+                    if lst_file_index_all[i] and not self._check_img_vol(
+                        lst_file_index_all[i], dct_dir_imgs["main"][i], i
+                    ):
+                        check_result = []
+                        break
             else:
                 if self._check_img_vol(file_index_all, dir_imgs):
                     check_result = [file_index_all, dir_imgs]

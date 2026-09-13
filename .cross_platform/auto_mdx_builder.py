@@ -1,23 +1,24 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # @Date    : 2023-11-16 00:00:17
 # @Author  : Litles (litlesme@gmail.com)
 # @Link    : https://github.com/Litles
 # @Version : 1.5
 
 import logging
-import traceback
 import os
 import re
 import shutil
+import traceback
+
 from colorama import Fore, just_fix_windows_console
-from settings import Settings
-from func_lib import FuncLib
 from img_dict_atmpl import ImgDictAtmpl
 from img_dict_btmpl import ImgDictBtmpl
 from text_dict_ctmpl import TextDictCtmpl
 from text_dict_dtmpl import TextDictDtmpl
+
 from ebook_utils import EbookUtils
+from func_lib import FuncLib
+from settings import Settings
 
 
 class AutoMdxBuilder:
@@ -292,7 +293,7 @@ class AutoMdxBuilder:
             text = ''
             if fp.endswith('.info.html'):
                 with open(fp, 'r', encoding='utf-8') as fr:
-                    pat = re.compile(r'<div><br/>([^><]*?), built with AutoMdxBuilder[^><]*?based on template ([A-D])\.<br/></div>', flags=re.I)
+                    pat = re.compile(r'<div><br/>([^><]*?), built with AutoMdxBuilder[^><]*?based on template ([A-D])\.<br/></div>', flags=re.IGNORECASE)
                     text = fr.read()
                     if pat.search(text):
                         # 符合条件, 支持还原
@@ -542,8 +543,9 @@ def main():
 
 if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s | %(message)s', filename=Settings().file_log, filemode='w', level=logging.INFO)
+    logger = logging.getLogger(__name__)
     try:
         main()
-        logging.info('The program worked fine.')
-    except:
-        logging.error(traceback.format_exc())
+        logger.info('The program worked fine.')
+    except Exception:  # noqa: BLE001  顶层错误处理，捕获所有异常以记录日志
+        logger.error(traceback.format_exc())
