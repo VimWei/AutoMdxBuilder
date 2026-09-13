@@ -1,0 +1,29 @@
+[project]
+name = "automdxbuilder"
+version = "1.6"
+description = "Automatically make mdx dictionaries (long-term maintained source fork)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = [
+    "colorama",
+    "tomli",
+    "tomlkit",
+    "mdict-utils",
+    "OpenCC",
+    "Pillow",
+    "PyMuPDF",
+    "pywinauto",
+    "pywin32; sys_platform == 'win32'",
+    "pywin32-ctypes; sys_platform == 'win32'",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+# 这是脚本目录，不是可安装包：不要让 uv 构建/安装本项目。
+[tool.uv]
+package = false

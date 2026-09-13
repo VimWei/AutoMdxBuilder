@@ -1,0 +1,18 @@
+# uv / virtualenv
+.venv/
+.venv*/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# caches
+.pytest_cache/
+.ruff_cache/
+
+# runtime temp (settings.dir_output_tmp)
+_tmp/
+
+# third-party Windows tools (MuPDF / FreePic2Pdf / PDFPatcher / Pdg2Pic)
+# 体积大且含第三方授权，默认不纳入版本库；保留作本地运行依赖。
+tools/
