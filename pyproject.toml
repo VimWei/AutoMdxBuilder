@@ -27,3 +27,19 @@ dev = [
 # 这是脚本目录，不是可安装包：不要让 uv 构建/安装本项目。
 [tool.uv]
 package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = ["tools", "_tmp"]
+
+[tool.ruff.lint]
+# 采用 ruff 默认规则集。
+# 源码中的中文全角标点属于正常文案内容，不使用 RUF001/RUF002/RUF003
+# （这三个规则不在默认集中，无需显式关闭）。
+
